@@ -43,11 +43,15 @@ export abstract class THttpService extends TBaseService {
   protected readonly q_access: Queue<any>;
   abstract initMaskedArray()
   protected varsEnvArray: Array<string>;
+  protected type: string;
 
-  constructor(env: IHttpServiceEnv, name: string, version: string) {
+  constructor(env: IHttpServiceEnv, name: string, version: string, type?: string) {
     super(env, name, version);
     this.q_access = env.q_access;
     this.requestUrlPatterns = [] as Array<TRequestUrlPattern>;
+    if(type) {
+      this.type = type;
+    }
   }
 
   async callHttp(
@@ -107,7 +111,7 @@ export abstract class THttpService extends TBaseService {
           descr: "Получение параметров запроса",
           pathname: "/std/requests/:req_id",
           method: "get",
-          func: this.getRequestParams,
+          func: this.type === "refactored" ? this.getHttpRequestParams : this.getRequestParams,
           test: testSettings["request_params_id"],
         },
       ],
@@ -182,6 +186,33 @@ export abstract class THttpService extends TBaseService {
 
   protected getRequestParams(
     env: IHttpServiceEnv,
+    pattern: TRequestUrlPattern,
+    requestHttpParams: TRequestHttpParams
+  ) {
+    let urlPattern = new URLPattern({ pathname: pattern.pathname });
+    let req_id = urlPattern.exec(requestHttpParams.url)!.pathname.groups.req_id;
+    let request = this.requestUrlPatterns.find((item) => item.id === req_id);
+    if (request) {
+      let result = {
+        responseStatus: 200,
+        responseError: [],
+        responseResult: {
+          name: this.name,
+          id: request.id,
+          descr: request.descr,
+          url: request.search ? `https://${this.name}${request.pathname}?${request.search}` : `https://${this.name}${request.pathname}`,
+          method: request.method,
+          test: request.test,
+        },
+      };
+
+      return result;
+    }
+  }
+
+  protected getHttpRequestParams(
+    env: IHttpServiceEnv,
+    srv: THttpService,
     pattern: TRequestUrlPattern,
     requestHttpParams: TRequestHttpParams
   ) {
